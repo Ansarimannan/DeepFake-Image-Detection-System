@@ -1,0 +1,16 @@
+{
+  "class_names": [
+    "fake",
+    "real"
+  ],
+  "class_indices": {
+    "fake": 0,
+    "real": 1
+  },
+  "num_classes": 2,
+  "image_size": [
+    224,
+    224
+  ],
+  "model_name": "MobileNetV2"
+}
