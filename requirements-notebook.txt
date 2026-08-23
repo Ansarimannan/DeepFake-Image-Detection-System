@@ -1,0 +1,8 @@
+# Optional: only needed to run notebooks/walkthrough.ipynb.
+# The package, the CLI and the tests do not require any of this, which is why
+# it is not in requirements.txt.
+-r requirements.txt
+
+notebook>=7.0.0
+ipykernel>=6.0.0
+ipywidgets>=8.0.0

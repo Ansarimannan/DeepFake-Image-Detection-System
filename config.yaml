@@ -1,0 +1,129 @@
+# =============================================================================
+# Deepfake Image Detection - single source of truth for every tunable value.
+#
+# Nothing in src/ hardcodes a hyperparameter. Every number below is read once,
+# at startup, by src/deepfake/config.py and validated there. If you want to
+# change an experiment, change this file, not the code.
+#
+# The resolved config is copied into artifacts/<run_name>/config.used.yaml on
+# every run, so any result can be traced back to the exact settings that made it.
+# =============================================================================
+
+project:
+  name: deepfake-image-detection
+  # Every artifact of a run lands in artifacts/<run_name>/
+  run_name: baseline
+  seed: 1337
+
+data:
+  # Raw dataset root. Must contain the two class directories named below.
+  # Downloaded from https://www.kaggle.com/datasets/ciplab/real-and-fake-face-detection
+  root: data/real_and_fake_face
+  class_dirs:
+    fake: training_fake      # label 0
+    real: training_real      # label 1
+  extensions: [".jpg", ".jpeg", ".png"]
+
+  # Three-way stratified split. Fractions must sum to 1.0.
+  # The split is materialised once into artifacts/splits/manifest.csv so that
+  # every later command sees exactly the same images in exactly the same split.
+  split:
+    train: 0.70
+    val: 0.15
+    test: 0.15
+    manifest: artifacts/splits/manifest.csv
+
+image:
+  # MobileNetV2 was trained at 224x224. Raising this generally helps forensic
+  # tasks (the artefacts are high-frequency) at a linear cost in compute.
+  size: [224, 224]
+  channels: 3
+
+pipeline:
+  batch_size: 32
+  # Cache the decoded+resized images. Augmentation lives INSIDE the model, so
+  # caching here is safe and does not freeze the random transforms.
+  cache: true
+  shuffle_buffer: 1024
+  prefetch: true
+
+augmentation:
+  # Applied inside the model, training-only. Deliberately conservative:
+  # heavy photometric jitter destroys the high-frequency evidence this task
+  # depends on, and vertical flips produce faces that never occur at inference.
+  enabled: true
+  random_flip_horizontal: true
+  random_rotation: 0.05        # fraction of 2*pi
+  random_zoom: 0.05
+  random_translation: 0.05
+  random_contrast: 0.05
+
+model:
+  backbone: MobileNetV2        # MobileNetV2 | EfficientNetB0
+  weights: imagenet
+  # Head: GlobalAveragePooling2D -> Dropout -> [Dense(u) + Dropout per entry] -> Dense(1, linear)
+  # An empty list gives a pure linear probe (the cheapest baseline).
+  head_units: []
+  dropout: 0.2
+  # Optional second stream over the SRM high-pass noise residual, fused with the
+  # backbone features before the head. "none" or "srm". The RGB stream carries
+  # ImageNet semantics; this one carries the local pixel statistics that splices
+  # disturb, which is the domain-specific signal a generic classifier misses.
+  frequency_branch: none
+  frequency_width: 32
+  # The final layer is LINEAR. Training uses from_logits=True for numerical
+  # stability, and Grad-CAM differentiates the logit instead of the saturated
+  # sigmoid. Inference applies the sigmoid explicitly. See docs/ARCHITECTURE.md.
+
+training:
+  # Stage 1: backbone frozen, head only.
+  stage1:
+    enabled: true
+    epochs: 20
+    learning_rate: 0.0001
+  # Stage 2: unfreeze the top N backbone layers at a much lower rate.
+  # BatchNormalization layers stay frozen throughout (see DECISIONS.md, D-007).
+  stage2:
+    enabled: true
+    epochs: 15
+    learning_rate: 0.00001
+    unfreeze_last_n: 40
+  # Exactly one learning-rate controller. Options: reduce_on_plateau | cosine | none
+  lr_schedule: reduce_on_plateau
+  reduce_on_plateau:
+    factor: 0.5
+    patience: 3
+    min_lr: 0.0000001
+  early_stopping:
+    monitor: val_auc_roc
+    mode: max                  # explicit: never rely on Keras mode='auto'
+    patience: 6
+    restore_best_weights: true
+  checkpoint:
+    monitor: val_auc_roc
+    mode: max                  # explicit, for the same reason
+  # Balanced class weights are applied only above this imbalance ratio.
+  class_weight_threshold: 1.5
+
+evaluation:
+  # Selected on the validation split, then applied unchanged to the test split.
+  # "youden" maximises tpr - fpr, the cost-neutral operating point (default);
+  # "f1" maximises F1 for the fake class, which on a near-balanced problem
+  #      degenerates toward "predict fake for everything" - see DECISIONS.md D-020;
+  # "fixed" uses threshold_value below.
+  threshold_strategy: youden
+  threshold_value: 0.5
+  # Test-time augmentation: score each image and its mirror, average the two.
+  # A horizontal flip is a real symmetry of a face and is already in the training
+  # augmentation, so this reduces variance without changing the model. Costs one
+  # extra forward pass per image.
+  tta_hflip: false
+  bootstrap_samples: 2000
+  confidence_level: 0.95
+  # Abstain band around the threshold: predictions inside it are returned as
+  # "uncertain" rather than a class. 0.0 disables it.
+  abstain_margin: 0.10
+
+gradcam:
+  samples: 6
+  alpha: 0.4

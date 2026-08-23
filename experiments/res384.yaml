@@ -1,0 +1,82 @@
+# Experiment: res384
+# Derived from config.yaml by experiments/derive.py. Do not hand-edit;
+# regenerate instead, so the diff against the baseline stays exact.
+#
+# Overrides applied:
+#   image.size = [384, 384]
+project:
+  name: deepfake-image-detection
+  run_name: res384
+  seed: 1337
+data:
+  root: data/real_and_fake_face
+  class_dirs:
+    fake: training_fake
+    real: training_real
+  extensions:
+  - .jpg
+  - .jpeg
+  - .png
+  split:
+    train: 0.7
+    val: 0.15
+    test: 0.15
+    manifest: artifacts/splits/manifest.csv
+image:
+  size:
+  - 384
+  - 384
+  channels: 3
+pipeline:
+  batch_size: 32
+  cache: true
+  shuffle_buffer: 1024
+  prefetch: true
+augmentation:
+  enabled: true
+  random_flip_horizontal: true
+  random_rotation: 0.05
+  random_zoom: 0.05
+  random_translation: 0.05
+  random_contrast: 0.05
+model:
+  backbone: MobileNetV2
+  weights: imagenet
+  head_units: []
+  dropout: 0.2
+  frequency_branch: none
+  frequency_width: 32
+training:
+  stage1:
+    enabled: true
+    epochs: 20
+    learning_rate: 0.0001
+  stage2:
+    enabled: true
+    epochs: 15
+    learning_rate: 1.0e-05
+    unfreeze_last_n: 40
+  lr_schedule: reduce_on_plateau
+  reduce_on_plateau:
+    factor: 0.5
+    patience: 3
+    min_lr: 1.0e-07
+  early_stopping:
+    monitor: val_auc_roc
+    mode: max
+    patience: 6
+    restore_best_weights: true
+  checkpoint:
+    monitor: val_auc_roc
+    mode: max
+  class_weight_threshold: 1.5
+evaluation:
+  threshold_strategy: youden
+  threshold_value: 0.5
+  tta_hflip: false
+  bootstrap_samples: 2000
+  confidence_level: 0.95
+  abstain_margin: 0.1
+gradcam:
+  samples: 6
+  alpha: 0.4

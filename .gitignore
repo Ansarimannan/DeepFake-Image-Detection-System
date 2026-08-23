@@ -1,0 +1,32 @@
+# Environment
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Data and trained artifacts are large and reproducible; the config and the
+# code that produced them are what belong in version control.
+data/
+artifacts/
+!artifacts/.gitkeep
+
+# Model files, wherever they land
+*.keras
+*.h5
+*.joblib
+*.onnx
+*.tflite
+
+# Credentials. Never commit these.
+kaggle.json
+.env
+.env.*
+
+# Editor noise
+.vscode/
+.idea/
+
+# Archived prototype and superseded study guide, kept locally only
+legacy/
+docs/
+*.bak

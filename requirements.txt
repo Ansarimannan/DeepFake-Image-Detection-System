@@ -1,0 +1,21 @@
+# Pinned to the last TensorFlow line that ships Keras 2 and Windows CPU wheels
+# for Python 3.11. TF 2.16 switches to Keras 3, which changes model saving and
+# several callback semantics; upgrading is a deliberate migration, not a bump.
+tensorflow>=2.15.0,<2.16.0
+numpy>=1.24.0,<2.0.0          # numpy 2 breaks the TF 2.15 binary interface
+
+scikit-learn>=1.3.0           # metrics, curves
+pandas>=2.0.0                 # the split manifest
+matplotlib>=3.7.0             # evaluation and Grad-CAM figures
+PyYAML>=6.0                   # config.yaml
+
+kaggle>=1.5.0                 # optional: dataset download
+pytest>=7.4.0                 # test suite
+
+# Deliberately removed in the v2 rewrite:
+#   opencv-python  image IO now goes through tf.io, so training and inference
+#                  share one decode path and cannot drift
+#   seaborn        matplotlib alone covers every figure produced here
+#   jupyter        the project is a package with a CLI, not a notebook
+#   nbconvert      nothing executes notebooks any more
+#   joblib         models are saved with model.save(), never pickled
